@@ -303,11 +303,25 @@ const M14_FIGHTS = {"gargoyle": ["st_sb_riff", "e2_mid2"], "knell": ["st_eb_buil
     if (e.aloft > 0) v.alpha = 0.85;
     if (e.m13brk) v.tint = [255, 230, 120, 0.3 + 0.2 * Math.sin(e.t * 20)];
     if (e.phase2) v.glow = Math.max(v.glow || 0, 0.22);
+    v.m14pull = 1;
     return v;
   };
   const _cs = collectSprites;
   collectSprites = function (cam) {
     const S = _cs(cam);
+    // bell fix: the minis are ~2 tiles wide (Knell's bell, the mace, wings) but stand ~0.5 from walls, so a side wall in front of the
+    // sprite's centre cut the wide parts off with a hard vertical edge. Slide the sprite toward the camera along its view ray and
+    // shrink it by the same ratio: identical screen position and size, but the depth test now sees the front of the body, not its centre.
+    try {
+      const dx = Math.cos(cam.ang), dy = Math.sin(cam.ang);
+      for (let i = 0; i < S.length; i++) {
+        const v = S[i]; if (!v || !v.m14pull) continue;
+        const d = (v.x - cam.x) * dx + (v.y - cam.y) * dy; const D = Math.min(v.w * 0.3, 0.6, d - 1.1);
+        if (!(D > 0)) continue;
+        const f = (d - D) / d;   // a copy: the visual object can be reused frame to frame, so never scale it in place
+        S[i] = Object.assign({}, v, { x: cam.x + (v.x - cam.x) * f, y: cam.y + (v.y - cam.y) * f, z: cam.eye + (v.z - cam.eye) * f, w: v.w * f, h: v.h * f, m14pull: 0 });
+      }
+    } catch (er) { M14.err = String(er && er.stack || er); }
     try {
       if (G.state !== 'play' && G.state !== 'pause') return S;
       const t = G.time, gl = (x, y, z, w, h, al, c) => S.push({ tex: 'glow_w', x, y, z, w, h, add: true, alpha: al, lit: false, tint: [c[0], c[1], c[2], 1] });
